@@ -112,7 +112,7 @@ func extractFields(prefix []string, target interface{}) ([]field, error) {
 				fields = append(fields, innerFields...)
 			}
 		default:
-			envKey := fieldKey
+			envKey := []string{}
 			if fieldOpts.envName != "" {
 				envKey = strings.Split(fieldOpts.envName, "_")
 			}
@@ -146,7 +146,7 @@ func parseTag(tagStr string) (fieldOptions, error) {
 	tagParts := strings.Split(tagStr, ",")
 	for _, tagPart := range tagParts {
 		vals := strings.SplitN(tagPart, ":", 2)
-		tagProp := vals[0]
+		tagProp := strings.TrimSpace(vals[0])
 
 		switch len(vals) {
 		case 1:

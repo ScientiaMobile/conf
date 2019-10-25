@@ -10,7 +10,7 @@ value and parses it for both the environment and flags. It supports several tags
 to customize the flag options.
 
 	default  - Provides the default value for the help
-	env      - Allows for overriding the default variable name.
+	env      - Allows to set a value using env variable name.
 	flag     - Allows for overriding the default flag name.
 	short    - Denotes a shorthand option for the flag.
 	noprint  - Denotes to not include the field in any display string.
@@ -23,8 +23,8 @@ the command name unless the name is overridden.
 As an example, this config struct:
 ```
 	type ip struct {
-		Name string `conf:"default:localhost,env:IP_NAME_VAR"`
-		IP   string `conf:"default:127.0.0.0"`
+		Name string `conf:"default:localhost,env:IP_NAME"`
+		IP   string `conf:"default:127.0.0.0,IP_IP"`
 		Endpoints []string `conf:"default:127.0.0.1:200;127.0.0.1:829"`
 	}
 	type Embed struct {
@@ -45,14 +45,14 @@ Would produce the following usage output:
 Usage: conf.test [options] [arguments]
 
 OPTIONS
-  --an-int/$TEST_AN_INT              <int>                 (default: 9)
-  --a-string/-s/$TEST_A_STRING       <string>              (default: B)
-  --bool/$TEST_BOOL                  <bool>                
-  --ip-name/$TEST_IP_NAME_VAR        <string>              (default: localhost)
+  --an-int                           <int>                 (default: 9)
+  --a-string/-s                      <string>              (default: B)
+  --bool                             <bool>                
+  --ip-name/$TEST_IP_NAME            <string>              (default: localhost)
   --ip-ip/$TEST_IP_IP                <string>              (default: 127.0.0.0)
-  --ip-endpoints/$TEST_IP_ENDPOINTS  <string>,[string...]  (default: 127.0.0.1:200;127.0.0.1:829)
-  --name/$TEST_NAME                  <string>              (default: bill)
-  --e-dur/-d/$TEST_DURATION          <duration>            (default: 1s)
+  --ip-endpoints                     <string>,[string...]  (default: 127.0.0.1:200;127.0.0.1:829)
+  --name                             <string>              (default: bill)
+  --e-dur/-d                         <duration>            (default: 1s)
   --help/-h                          
   display this help message
 ```
@@ -61,7 +61,7 @@ The API is a single call to `Parse`
 ```
 	// Parse(args []string, namespace string, cfgStruct interface{}, sources ...Sourcer) error
 
-	if err := conf.Parse(os.Args, "CRUD", &cfg); err != nil {
+	if err := conf.Parse(os.Args, "TEST", &cfg); err != nil {
 		log.Fatalf("main : Parsing Config : %v", err)
 	}
 ```

@@ -22,13 +22,22 @@ type ip struct {
 	Endpoints []string `conf:"default:127.0.0.1:200;127.0.0.1:829"`
 }
 type Embed struct {
-	Name     string        `conf:"default:bill"`
-	Duration time.Duration `conf:"default:1s,flag:e-dur,short:d"`
+	Name     string        `conf:"default:bill,env:NAME"`
+	Duration time.Duration `conf:"default:1s,flag:e-dur,short:d,env:DURATION"`
 }
 type config struct {
-	AnInt   int    `conf:"default:9"`
-	AString string `conf:"default:B,short:s"`
-	Bool    bool
+	AnInt   int    `conf:"default:9,env:AN_INT"`
+	AString string `conf:"default:B,short:s,env:A_STRING"`
+	Bool    bool   `conf:"env:BOOL"`
+	Skip    string `conf:"-"`
+	IP      ip
+	Embed
+}
+
+type configNoEnvNamespace struct {
+	AnInt   int    `conf:"default:9,env:AN_INT"`
+	AString string `conf:"default:B,short:s,env:A_STRING"`
+	Bool    bool   `conf:"env:BOOL"`
 	Skip    string `conf:"-"`
 	IP      ip
 	Embed
@@ -40,7 +49,7 @@ func TestRequired(t *testing.T) {
 	{
 		f := func(t *testing.T) {
 			var cfg struct {
-				TestInt    int `conf:"required, default:1"`
+				TestInt    int `conf:"required"`
 				TestString string
 				TestBool   bool
 			}
@@ -74,7 +83,7 @@ func TestRequired(t *testing.T) {
 	{
 		f := func(t *testing.T) {
 			var cfg struct {
-				TestInt    int `conf:"required, default:1"`
+				TestInt    int `conf:"default:1"`
 				TestString string
 				TestBool   bool
 			}
@@ -92,14 +101,18 @@ func TestRequired(t *testing.T) {
 	{
 		f := func(t *testing.T) {
 			var cfg struct {
-				TestInt    int `conf:"required, default:1"`
+				TestInt    int `conf:"default:1, env:TEST_INT"`
 				TestString string
 				TestBool   bool
 			}
-			os.Setenv("TEST_TEST_INT", "1")
+			os.Setenv("TEST_TEST_INT", "2")
 			err := conf.Parse(nil, "TEST", &cfg)
 			if err != nil {
 				t.Fatalf("\t%s\tShould have parsed the required field on Env : %s", failed, err)
+			}
+			expected := 2
+			if cfg.TestInt != expected {
+				t.Fatalf("\t%s\tExpected %d, got %d", failed, expected, cfg.TestInt)
 			}
 			t.Logf("\t%s\tShould have parsed the required field on Env.", success)
 		}
@@ -158,7 +171,69 @@ func TestParse(t *testing.T) {
 					t.Logf("\t%s\tShould be able to Parse arguments.", success)
 
 					if diff := cmp.Diff(tt.want, cfg); diff != "" {
-						t.Fatalf("\t%s\tShould have properly initialized struct value\n%s", failed, diff)
+						t.Fatalf("\t%s\t%s Should have properly initialized struct value\n%s", failed, tt.name, diff)
+					}
+					t.Logf("\t%s\tShould have properly initialized struct value.", success)
+				}
+
+				t.Run(tt.name, f)
+			}
+		}
+	}
+}
+
+func TestParseWithoutNamespace(t *testing.T) {
+	tests := []struct {
+		name string
+		envs map[string]string
+		args []string
+		want config
+	}{
+		{
+			"default",
+			nil,
+			nil,
+			config{9, "B", false, "", ip{"localhost", "127.0.0.0", []string{"127.0.0.1:200", "127.0.0.1:829"}}, Embed{"bill", time.Second}},
+		},
+		{
+			"env",
+			map[string]string{"AN_INT": "1", "A_STRING": "s", "BOOL": "TRUE", "SKIP": "SKIP", "IP_NAME_VAR": "local", "NAME": "andy", "DURATION": "1m"},
+			nil,
+			config{1, "s", true, "", ip{"local", "127.0.0.0", []string{"127.0.0.1:200", "127.0.0.1:829"}}, Embed{"andy", time.Minute}},
+		},
+		{
+			"flag",
+			nil,
+			[]string{"--an-int", "1", "-s", "s", "--bool", "--skip", "skip", "--ip-name", "local", "--name", "andy", "--e-dur", "1m"},
+			config{1, "s", true, "", ip{"local", "127.0.0.0", []string{"127.0.0.1:200", "127.0.0.1:829"}}, Embed{"andy", time.Minute}},
+		},
+		{
+			"multi",
+			map[string]string{"A_STRING": "s", "BOOL": "TRUE", "IP_NAME_VAR": "local", "NAME": "andy", "DURATION": "1m"},
+			[]string{"--an-int", "2", "--bool", "--skip", "skip", "--name", "jack", "-d", "1ms"},
+			config{2, "s", true, "", ip{"local", "127.0.0.0", []string{"127.0.0.1:200", "127.0.0.1:829"}}, Embed{"jack", time.Millisecond}},
+		},
+	}
+
+	t.Log("Given the need to parse basic configuration.")
+	{
+		for i, tt := range tests {
+			t.Logf("\tTest: %d\tWhen checking with arguments %v", i, tt.args)
+			{
+				os.Clearenv()
+				for k, v := range tt.envs {
+					os.Setenv(k, v)
+				}
+
+				f := func(t *testing.T) {
+					var cfg config
+					if err := conf.Parse(tt.args, "", &cfg); err != nil {
+						t.Fatalf("\t%s\tShould be able to Parse arguments : %s.", failed, err)
+					}
+					t.Logf("\t%s\tShould be able to Parse arguments.", success)
+
+					if diff := cmp.Diff(tt.want, cfg); diff != "" {
+						t.Fatalf("\t%s\t%s Should have properly initialized struct value\n%s", failed, tt.name, diff)
 					}
 					t.Logf("\t%s\tShould have properly initialized struct value.", success)
 				}
@@ -298,8 +373,8 @@ OPTIONS
   --a-string/-s/$TEST_A_STRING       <string>              (default: B)
   --bool/$TEST_BOOL                  <bool>                
   --ip-name/$TEST_IP_NAME_VAR        <string>              (default: localhost)
-  --ip-ip/$TEST_IP_IP                <string>              (default: 127.0.0.0)
-  --ip-endpoints/$TEST_IP_ENDPOINTS  <string>,[string...]  (default: 127.0.0.1:200;127.0.0.1:829)
+  --ip-ip                			 <string>              (default: 127.0.0.0)
+  --ip-endpoints                     <string>,[string...]  (default: 127.0.0.1:200;127.0.0.1:829)
   --name/$TEST_NAME                  <string>              (default: bill)
   --e-dur/-d/$TEST_DURATION          <duration>            (default: 1s)
   --help/-h                          

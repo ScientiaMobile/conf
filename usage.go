@@ -39,7 +39,7 @@ func fmtUsage(namespace string, fields []field) string {
 		fmt.Fprintf(w, "  %s", flagUsage(fld))
 
 		// Do not display env vars for help since they aren't respected.
-		if fld.name != "help" {
+		if fld.name != "help" && len(fld.envKey) > 0 {
 			fmt.Fprintf(w, "/%s", envUsage(namespace, fld))
 		}
 
