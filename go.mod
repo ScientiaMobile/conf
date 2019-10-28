@@ -1,4 +1,4 @@
-module github.com/scientiamobile/conf
+module github.com/ardanlabs/conf
 
 go 1.13
 
